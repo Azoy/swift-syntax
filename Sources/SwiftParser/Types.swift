@@ -417,14 +417,16 @@ extension Parser {
       var keepGoing: RawTokenSyntax? = nil
       var loopProgress = LoopProgressCondition()
       repeat {
-        let type = self.parseType()
-        if arguments.isEmpty && type.is(RawMissingTypeSyntax.self) {
+        let argument = self.parseGenericArgumentType()
+
+        if arguments.isEmpty, argument.value.raw.is(RawMissingTypeSyntax.self) {
           break
         }
+
         keepGoing = self.consume(if: .comma)
         arguments.append(
           RawGenericArgumentSyntax(
-            argument: type,
+            argument: argument,
             trailingComma: keepGoing,
             arena: self.arena
           )
@@ -446,6 +448,20 @@ extension Parser {
       rightAngle: rangle,
       arena: self.arena
     )
+  }
+
+  mutating func parseGenericArgumentType() -> RawGenericArgumentTypeSyntax {
+    if let valueType = self.parseValueType() {
+      return RawGenericArgumentTypeSyntax(
+        value: .expr(valueType),
+        arena: self.arena
+      )
+    } else {
+      return RawGenericArgumentTypeSyntax(
+        value: .type(self.parseType()),
+        arena: self.arena
+      )
+    }
   }
 }
 
@@ -686,9 +702,22 @@ extension Parser.Lookahead {
     switch self.currentToken {
     case TokenSpec(.Any):
       self.consumeAnyToken()
-    case TokenSpec(.prefixOperator) where self.currentToken.tokenText == "~":
-      self.consumeAnyToken()
-      fallthrough
+    case TokenSpec(.prefixOperator):
+      // '~Copyable'
+      if self.currentToken.tokenText == "~" {
+        self.consumeAnyToken()
+        fallthrough
+      }
+
+      // '-123' for value generics.
+      if self.currentToken.tokenText == "-",
+         self.peek(isAt: .integerLiteral) {
+        self.consumeAnyToken()
+        self.consumeAnyToken()
+        return true
+      }
+
+      return false
     case TokenSpec(.Self), TokenSpec(.identifier):
       guard self.canParseTypeIdentifier() else {
         return false
@@ -1104,6 +1133,38 @@ extension Parser {
 
       return result
     }
+  }
+}
+
+extension Parser {
+  mutating func parseValueType() -> RawExprSyntax? {
+    // Eat any '-' preceding integer literals.
+    var minusSign: RawTokenSyntax? = nil
+    if self.currentToken.tokenText == "-",
+       self.peek(isAt: .integerLiteral) {
+      minusSign = self.consumeIfContextualPunctuator("-", remapping: .prefixOperator)
+    }
+
+    // Attempt to parse values first. Right now the only value that can be parsed
+    // as a type are integers.
+    if let integerLiteral = self.consume(if: .integerLiteral) {
+      let integerExpr = RawIntegerLiteralExprSyntax(
+        literal: integerLiteral,
+        arena: self.arena
+      )
+
+      guard let minusSign else {
+        return RawExprSyntax(integerExpr)
+      }
+
+      return RawExprSyntax(RawPrefixOperatorExprSyntax(
+        operator: minusSign,
+        expression: integerExpr,
+        arena: self.arena
+      ))
+    }
+
+    return nil
   }
 }
 

@@ -189,6 +189,7 @@ These articles are intended for developers wishing to contribute to SwiftSyntax
 - <doc:SwiftSyntax/CompositionTypeSyntax>
 - <doc:SwiftSyntax/DictionaryTypeSyntax>
 - <doc:SwiftSyntax/FunctionTypeSyntax>
+- <doc:SwiftSyntax/GenericArgumentTypeSyntax>
 - <doc:SwiftSyntax/IdentifierTypeSyntax>
 - <doc:SwiftSyntax/ImplicitlyUnwrappedOptionalTypeSyntax>
 - <doc:SwiftSyntax/MemberTypeSyntax>
